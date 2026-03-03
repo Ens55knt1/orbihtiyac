@@ -20,7 +20,7 @@ interface AuthContextValue {
   token: string | null;
   user: User | null;
   login: (isim: string, soyisim: string, password: string) => Promise<{ success: boolean; message?: string }>;
-  register: (isim: string, soyisim: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  register: (isim: string, soyisim: string, password: string, role?: string, nameColor?: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
   setUser: (u: User | null) => void;
   getAuthHeaders: () => Record<string, string>;
@@ -94,12 +94,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (isim: string, soyisim: string, password: string) => {
+  const register = async (isim: string, soyisim: string, password: string, role?: string, nameColor?: string) => {
     try {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isim: isim.trim(), soyisim: (soyisim ?? "").trim(), password })
+        body: JSON.stringify({ isim: isim.trim(), soyisim: (soyisim ?? "").trim(), password, role: role || "floor3", nameColor: nameColor || undefined })
       });
       const data = await res.json();
       if (!res.ok) return { success: false, message: data.message || "Kayıt başarısız" };

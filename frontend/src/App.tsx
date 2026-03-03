@@ -48,10 +48,27 @@ const LOCATION_ROLES: { value: UserRole; label: string }[] = [
   { value: "yonetici", label: "Yönetici" }
 ];
 
+const ADMIN_ADD_ROLES: { value: UserRole; label: string }[] = [
+  { value: "floor3", label: "3. kat" },
+  { value: "floor6", label: "6. kat" },
+  { value: "yonetici", label: "Yönetici" }
+];
+
 const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> }> = ({ getAuthHeaders }) => {
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [addIsim, setAddIsim] = useState("");
+  const [addSoyisim, setAddSoyisim] = useState("");
+  const [addPassword, setAddPassword] = useState("");
+  const [addRole, setAddRole] = useState<UserRole>("floor3");
+  const [addError, setAddError] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+  const [setPasswordUserId, setSetPasswordUserId] = useState<number | null>(null);
+  const [setPasswordNew, setSetPasswordNew] = useState("");
+  const [setPasswordError, setSetPasswordError] = useState("");
+  const [setPasswordLoading, setSetPasswordLoading] = useState(false);
 
   const loadUsers = async () => {
     try {
@@ -90,42 +107,165 @@ const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> 
     }
   };
 
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError("");
+    if (!addIsim.trim() || !addPassword || addPassword.length < 4) {
+      setAddError("İsim ve parola (en az 4 karakter) gerekli");
+      return;
+    }
+    setAddLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/users`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ isim: addIsim.trim(), soyisim: addSoyisim.trim(), password: addPassword, role: addRole })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setShowAddUser(false);
+        setAddIsim("");
+        setAddSoyisim("");
+        setAddPassword("");
+        setAddRole("floor3");
+        await loadUsers();
+      } else {
+        setAddError(data.message || "Kullanıcı eklenemedi");
+      }
+    } catch {
+      setAddError("Bağlantı hatası");
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  const handleSetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (setPasswordUserId == null || !setPasswordNew || setPasswordNew.length < 4) return;
+    setSetPasswordError("");
+    setSetPasswordLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/users/${setPasswordUserId}/set-password`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: setPasswordNew })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSetPasswordUserId(null);
+        setSetPasswordNew("");
+      } else {
+        setSetPasswordError(data.message || "Parola belirlenemedi");
+      }
+    } catch {
+      setSetPasswordError("Bağlantı hatası");
+    } finally {
+      setSetPasswordLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: number, userName: string) => {
+    if (!window.confirm(`${userName} kullanıcısını silmek istediğinize emin misiniz?`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/users/${userId}`, { method: "DELETE", headers: getAuthHeaders() });
+      if (res.ok) await loadUsers();
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
-    <section className="card admin-roles-card">
-      <h2>Rol yönetimi</h2>
-      <p className="admin-roles-desc">Birden fazla rol atayabilirsiniz (örn. 3. kat + 6. kat).</p>
-      {loading ? (
-        <p>Yükleniyor...</p>
-      ) : (
-        <ul className="admin-user-list">
-          {users.map((u) => {
-            const roles = u.roles ?? [u.role];
-            return (
-              <li key={u.id} className="admin-user-row">
-                <span className="admin-user-name">{u.isim}{u.soyisim ? ` ${u.soyisim}` : ""}</span>
-                {u.role === "admin" ? (
-                  <span className="admin-user-role-badge">Admin</span>
-                ) : (
-                  <div className="admin-roles-multi">
-                    {LOCATION_ROLES.map(({ value, label }) => (
-                      <label key={value} className="admin-role-check">
-                        <input
-                          type="checkbox"
-                          checked={roles.includes(value)}
-                          disabled={updatingId === u.id}
-                          onChange={() => updateRoles(u.id, toggleRole(roles, value))}
-                        />
-                        <span>{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+    <>
+      <section className="card admin-roles-card">
+        <h2>Kullanıcı ve rol yönetimi</h2>
+        <p className="admin-roles-desc">Kullanıcı ekleyebilir, silebilir, şifre ve rollerini düzenleyebilirsiniz.</p>
+        <button type="button" className="primary admin-add-user-btn" onClick={() => { setShowAddUser(true); setAddError(""); }}>
+          + Kullanıcı ekle
+        </button>
+        {loading ? (
+          <p>Yükleniyor...</p>
+        ) : (
+          <ul className="admin-user-list">
+            {users.map((u) => {
+              const roles = u.roles ?? [u.role];
+              const displayName = `${u.isim}${u.soyisim ? ` ${u.soyisim}` : ""}`;
+              return (
+                <li key={u.id} className="admin-user-row">
+                  <span className="admin-user-name">{displayName}</span>
+                  {u.role === "admin" ? (
+                    <span className="admin-user-role-badge">Admin</span>
+                  ) : (
+                    <>
+                      <div className="admin-roles-multi">
+                        {LOCATION_ROLES.map(({ value, label }) => (
+                          <label key={value} className="admin-role-check">
+                            <input
+                              type="checkbox"
+                              checked={roles.includes(value)}
+                              disabled={updatingId === u.id}
+                              onChange={() => updateRoles(u.id, toggleRole(roles, value))}
+                            />
+                            <span>{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="admin-user-actions">
+                        <button type="button" className="secondary btn-sm" onClick={() => { setSetPasswordUserId(u.id); setSetPasswordNew(""); setSetPasswordError(""); }}>
+                          Şifre belirle
+                        </button>
+                        <button type="button" className="btn-delete btn-sm" onClick={() => handleDeleteUser(u.id, displayName)} title="Kullanıcıyı sil">
+                          Sil
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {showAddUser && (
+        <div className="modal-overlay" onClick={() => setShowAddUser(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Kullanıcı ekle</h3>
+            <form onSubmit={handleAddUser}>
+              {addError && <div className="error">{addError}</div>}
+              <input type="text" placeholder="İsim" value={addIsim} onChange={e => setAddIsim(e.target.value)} className="login-input" required />
+              <input type="text" placeholder="Soyisim" value={addSoyisim} onChange={e => setAddSoyisim(e.target.value)} className="login-input" />
+              <label className="profile-label">Rol</label>
+              <select value={addRole} onChange={e => setAddRole(e.target.value as UserRole)} className="login-input">
+                {ADMIN_ADD_ROLES.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <input type="password" placeholder="Parola (en az 4 karakter)" value={addPassword} onChange={e => setAddPassword(e.target.value)} className="login-input" minLength={4} required />
+              <div className="modal-actions">
+                <button type="button" className="secondary" onClick={() => setShowAddUser(false)}>İptal</button>
+                <button type="submit" disabled={addLoading}>{addLoading ? "Ekleniyor..." : "Ekle"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
-    </section>
+
+      {setPasswordUserId != null && (
+        <div className="modal-overlay" onClick={() => { setSetPasswordUserId(null); setSetPasswordError(""); }}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>Kullanıcı şifresi belirle</h3>
+            <form onSubmit={handleSetPassword}>
+              {setPasswordError && <div className="error">{setPasswordError}</div>}
+              <input type="password" placeholder="Yeni parola (en az 4 karakter)" value={setPasswordNew} onChange={e => setSetPasswordNew(e.target.value)} className="login-input" minLength={4} required />
+              <div className="modal-actions">
+                <button type="button" className="secondary" onClick={() => { setSetPasswordUserId(null); setSetPasswordError(""); }}>İptal</button>
+                <button type="submit" disabled={setPasswordLoading || setPasswordNew.length < 4}>{setPasswordLoading ? "Kaydediliyor..." : "Kaydet"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -156,6 +296,8 @@ export const App: React.FC = () => {
   const [regIsim, setRegIsim] = useState("");
   const [regSoyisim, setRegSoyisim] = useState("");
   const [regPassword, setRegPassword] = useState("");
+  const [regRole, setRegRole] = useState<UserRole>("floor3");
+  const [regNameColor, setRegNameColor] = useState("");
   const [regError, setRegError] = useState("");
   const [regLoading, setRegLoading] = useState(false);
 
@@ -471,7 +613,7 @@ export const App: React.FC = () => {
     e.preventDefault();
     setRegError("");
     setRegLoading(true);
-    const result = await register(regIsim.trim(), regSoyisim.trim(), regPassword);
+    const result = await register(regIsim.trim(), regSoyisim.trim(), regPassword, regRole, regNameColor || undefined);
     setRegLoading(false);
     if (!result.success) setRegError(result.message || "Kayıt başarısız");
   };
@@ -537,6 +679,29 @@ export const App: React.FC = () => {
                 autoComplete="family-name"
                 className="login-input"
               />
+              <label className="profile-label">Rol</label>
+              <select
+                value={regRole}
+                onChange={(e) => setRegRole(e.target.value as UserRole)}
+                className="login-input"
+              >
+                <option value="floor3">3. kat</option>
+                <option value="floor6">6. kat</option>
+                <option value="yonetici">Yönetici</option>
+              </select>
+              <label className="profile-label">İsim rengi</label>
+              <div className="profile-color-row">
+                {NAME_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`profile-color-swatch ${regNameColor === c ? "profile-color-swatch-active" : ""}`}
+                    style={{ background: c }}
+                    onClick={() => setRegNameColor(regNameColor === c ? "" : c)}
+                    title={c}
+                  />
+                ))}
+              </div>
               <input
                 type="password"
                 placeholder="Parola (en az 4 karakter)"
@@ -904,7 +1069,7 @@ export const App: React.FC = () => {
 
           {error && <div className="error">{error}</div>}
 
-          {visibleItems.length > 0 && (
+          {visibleItems.length > 0 && user?.role === "admin" && (
             <div className="list-actions-row">
               <label className="select-all-label">
                 <input
@@ -927,14 +1092,16 @@ export const App: React.FC = () => {
             <ul className="item-list-flat">
               {visibleItems.map(item => (
               <li key={item.id} className={`category-item status-${item.status.toLowerCase()}`}>
-                <label className="item-checkbox-wrap">
-                  <input
-                    type="checkbox"
-                    checked={selectedItemIds.includes(item.id)}
-                    onChange={() => toggleSelectItem(item.id)}
-                    className="list-checkbox"
-                  />
-                </label>
+                {user?.role === "admin" && (
+                  <label className="item-checkbox-wrap">
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIds.includes(item.id)}
+                      onChange={() => toggleSelectItem(item.id)}
+                      className="list-checkbox"
+                    />
+                  </label>
+                )}
                 <div className="item-content">
                   <div className="item-name-row">
                     <span className="item-name">{item.name}</span>
@@ -971,7 +1138,9 @@ export const App: React.FC = () => {
                   {activeTab === "needed" && (
                     <button className="secondary btn-sm" onClick={() => openSlipModal(item.id)}>Alındı</button>
                   )}
-                  <button type="button" className="btn-delete btn-sm" onClick={() => deleteItem(item.id)} title="Sil">Sil</button>
+                  {user?.role === "admin" && (
+                    <button type="button" className="btn-delete btn-sm" onClick={() => deleteItem(item.id)} title="Sil">Sil</button>
+                  )}
                 </div>
                 {item.createdBy && (
                   <div className="item-added-by">
@@ -980,12 +1149,14 @@ export const App: React.FC = () => {
                     ) : (
                       <span className="item-creator-placeholder" aria-hidden />
                     )}
-                    <span className="item-creator-name" style={item.createdBy.nameColor ? { color: item.createdBy.nameColor } : undefined}>
-                      {item.createdBy.isim}{item.createdBy.soyisim ? ` ${item.createdBy.soyisim}` : ""}
+                    <span className="item-creator-name-wrap">
+                      <span className="item-creator-name" style={item.createdBy.nameColor ? { color: item.createdBy.nameColor } : undefined}>
+                        {item.createdBy.isim}{item.createdBy.soyisim ? ` ${item.createdBy.soyisim}` : ""}
+                      </span>
+                      {item.createdBy.roleLabel && (
+                        <span className="item-creator-role">{item.createdBy.roleLabel}</span>
+                      )}
                     </span>
-                    {item.createdBy.roleLabel && (
-                      <span className="item-creator-role">{item.createdBy.roleLabel}</span>
-                    )}
                   </div>
                 )}
               </li>

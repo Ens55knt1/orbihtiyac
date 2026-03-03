@@ -175,13 +175,17 @@ app.post("/auth/login", (req, res) => {
   });
 });
 
+const REGISTER_ROLES: UserRole[] = ["floor3", "floor6", "yonetici"];
 app.post("/auth/register", (req, res) => {
-  const { isim, soyisim, password } = req.body as { isim?: string; soyisim?: string; password?: string };
+  const { isim, soyisim, password, role, nameColor } = req.body as { isim?: string; soyisim?: string; password?: string; role?: UserRole; nameColor?: string };
   const i = (isim ?? "").trim();
   const s = (soyisim ?? "").trim();
   if (!i || !password || password.length < 4) {
     return res.status(400).json({ message: "İsim ve parola (en az 4 karakter) gerekli" });
   }
+  const chosenRole: UserRole = REGISTER_ROLES.includes(role) ? role : "floor3";
+  const validColors = new Set(NAME_COLORS);
+  const color = nameColor && validColors.has(nameColor as typeof NAME_COLORS[number]) ? nameColor : undefined;
   const key = (a: string, b: string) => `${a.toLowerCase()}|${b.toLowerCase()}`;
   if (users.some((u) => key(u.isim, u.soyisim) === key(i, s))) {
     return res.status(400).json({ message: "Bu isim ve soyisim zaten kayıtlı" });
@@ -193,10 +197,11 @@ app.post("/auth/register", (req, res) => {
     soyisim: s,
     kullaniciAdi: "",
     password: String(password),
-    role: "genel",
-    roles: ["genel"],
+    role: chosenRole,
+    roles: [chosenRole],
     passwordChanged: false,
-    profilePhoto: undefined
+    profilePhoto: undefined,
+    nameColor: color
   };
   users.push(newUser);
   saveUsersToFile();
@@ -207,7 +212,7 @@ app.post("/auth/register", (req, res) => {
   );
   return res.status(201).json({
     token,
-    user: { id: newUser.id, isim: newUser.isim, soyisim: newUser.soyisim, kullaniciAdi: newUser.kullaniciAdi ?? "", role: newUser.role, roles: newUser.roles ?? ["genel"], requiresPasswordChange: false, profilePhoto: newUser.profilePhoto, nameColor: newUser.nameColor }
+    user: { id: newUser.id, isim: newUser.isim, soyisim: newUser.soyisim, kullaniciAdi: newUser.kullaniciAdi ?? "", role: newUser.role, roles: newUser.roles ?? [chosenRole], requiresPasswordChange: false, profilePhoto: newUser.profilePhoto, nameColor: newUser.nameColor }
   });
 });
 
@@ -309,14 +314,68 @@ app.get("/api/profile/photo/:filename", slipAuth, (req, res) => {
 });
 
 // --- Kullanıcı sayısı (giriş yapmış herkes görebilir) ---
-app.get("/api/users/count", authMiddleware, (req, res) => {
-  res.json({ count: users.length });
+app.get("/api/users/count", authMiddleware, (_req, res) => {
+  const count = users.filter((u) => u.role !== "admin").length;
+  res.json({ count });
 });
 
 // --- Kullanıcı listesi ve rol güncelleme (sadece admin) ---
 app.get("/api/users", authMiddleware, adminOnly, (req, res) => {
   const list = users.map((u) => ({ id: u.id, isim: u.isim, soyisim: u.soyisim, role: u.role, roles: u.roles ?? [u.role], nameColor: u.nameColor }));
   res.json(list);
+});
+
+app.post("/api/users", authMiddleware, adminOnly, (req, res) => {
+  const { isim, soyisim, password, role } = req.body as { isim?: string; soyisim?: string; password?: string; role?: UserRole };
+  const i = (isim ?? "").trim();
+  const s = (soyisim ?? "").trim();
+  if (!i || !password || String(password).length < 4) {
+    return res.status(400).json({ message: "İsim ve parola (en az 4 karakter) gerekli" });
+  }
+  const chosenRole: UserRole = REGISTER_ROLES.includes(role) ? role : "floor3";
+  const key = (a: string, b: string) => `${a.toLowerCase()}|${b.toLowerCase()}`;
+  if (users.some((u) => key(u.isim, u.soyisim) === key(i, s))) {
+    return res.status(400).json({ message: "Bu isim ve soyisim zaten kayıtlı" });
+  }
+  const id = users.length ? Math.max(...users.map((u) => u.id)) + 1 : 1;
+  const newUser: User = {
+    id,
+    isim: i,
+    soyisim: s,
+    kullaniciAdi: "",
+    password: String(password),
+    role: chosenRole,
+    roles: [chosenRole],
+    passwordChanged: false,
+    profilePhoto: undefined
+  };
+  users.push(newUser);
+  saveUsersToFile();
+  return res.status(201).json({ id: newUser.id, isim: newUser.isim, soyisim: newUser.soyisim, role: newUser.role, roles: newUser.roles });
+});
+
+app.delete("/api/users/:id", authMiddleware, adminOnly, (req, res) => {
+  const id = Number(req.params.id);
+  const target = users.find((u) => u.id === id);
+  if (!target) return res.status(404).json({ message: "Kullanıcı bulunamadı" });
+  if (target.role === "admin") return res.status(400).json({ message: "Admin silinemez" });
+  users = users.filter((u) => u.id !== id);
+  saveUsersToFile();
+  return res.status(204).send();
+});
+
+app.post("/api/users/:id/set-password", authMiddleware, adminOnly, (req, res) => {
+  const id = Number(req.params.id);
+  const { newPassword } = req.body as { newPassword?: string };
+  const target = users.find((u) => u.id === id);
+  if (!target) return res.status(404).json({ message: "Kullanıcı bulunamadı" });
+  if (!newPassword || String(newPassword).length < 4) {
+    return res.status(400).json({ message: "Yeni parola en az 4 karakter olmalı" });
+  }
+  target.password = String(newPassword);
+  target.passwordChanged = true;
+  saveUsersToFile();
+  return res.json({ success: true });
 });
 
 app.patch("/api/users/:id", authMiddleware, adminOnly, (req, res) => {
@@ -510,26 +569,21 @@ app.post("/api/items/:id/slip", authMiddleware, upload.single("slip"), (req, res
 });
 
 app.delete("/api/items/:id", authMiddleware, (req, res) => {
+  const { user } = req as express.Request & { user: JwtPayload };
+  if (user.role !== "admin") return res.status(403).json({ message: "Sadece admin öğe silebilir" });
   const id = Number(req.params.id);
   const item = items.find((i) => i.id === id);
   if (!item) return res.status(404).json({ message: "Item not found" });
-  if (!canAccessItem(req, item)) return res.status(403).json({ message: "Yetkisiz" });
   items = items.filter((i) => i.id !== id);
   res.status(204).send();
 });
 
 app.delete("/api/items", authMiddleware, (req, res) => {
-  const visible = userVisibleLocations(req);
+  const { user } = req as express.Request & { user: JwtPayload };
+  if (user.role !== "admin") return res.status(403).json({ message: "Sadece admin öğe silebilir" });
   const location = req.query.location as Location | undefined;
-  if (visible === "all") {
-    if (location === "genel" || location === "floor3" || location === "floor6") {
-      items = items.filter((i) => i.location !== location);
-    }
-  } else {
-    const locs = visible as Location[];
-    if (location && locs.includes(location)) {
-      items = items.filter((i) => i.location !== location);
-    }
+  if (location === "genel" || location === "floor3" || location === "floor6") {
+    items = items.filter((i) => i.location !== location);
   }
   res.status(204).send();
 });

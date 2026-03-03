@@ -486,6 +486,15 @@ button.primary:hover:not(:disabled) {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.item-creator-name-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 0;
 }
 .item-creator-avatar {
   width: 22px;
@@ -510,7 +519,8 @@ button.primary:hover:not(:disabled) {
   font-size: 11px;
   color: var(--orbisis-primary-light);
   opacity: 0.9;
-  margin-left: 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .btn-sm {
   padding: 6px 10px;
@@ -722,6 +732,17 @@ button.primary:hover:not(:disabled) {
   margin: 8px 0 16px;
 }
 
+.admin-add-user-btn {
+  margin-bottom: 16px;
+}
+
+.admin-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .admin-user-list {
   list-style: none;
   padding: 0;
@@ -736,6 +757,7 @@ button.primary:hover:not(:disabled) {
   padding: 12px 0;
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   transition: background 0.2s ease;
+  flex-wrap: wrap;
 }
 
 .admin-user-row:last-child {
