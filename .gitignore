@@ -1,0 +1,15 @@
+node_modules
+.env
+.env.local
+*.log
+frontend/dist
+.DS_Store
+
+# Build / derleme çıktıları (GitHub 100MB limiti)
+bin/
+obj/
+**/publish/
+**/target/
+.vite/
+firebase/.cache
+firebase/hosting.*.cache

@@ -1,0 +1,10 @@
+[
+  {
+    "id": 1,
+    "isim": "admin",
+    "soyisim": "",
+    "password": "123456",
+    "role": "admin",
+    "passwordChanged": false
+  }
+]

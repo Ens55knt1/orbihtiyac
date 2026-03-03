@@ -1,0 +1,14 @@
+# Render.com - Backend API (Node.js)
+# Repo'yu Render'a bağladıktan sonra bu dosya otomatik okunur.
+# Dokümantasyon: https://docs.render.com/blueprint-spec
+
+services:
+  - type: web
+    name: orbihtiyac-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
