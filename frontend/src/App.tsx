@@ -69,6 +69,7 @@ const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> 
   const [setPasswordNew, setSetPasswordNew] = useState("");
   const [setPasswordError, setSetPasswordError] = useState("");
   const [setPasswordLoading, setSetPasswordLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const loadUsers = async () => {
     try {
@@ -166,11 +167,17 @@ const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> 
 
   const handleDeleteUser = async (userId: number, userName: string) => {
     if (!window.confirm(`${userName} kullanıcısını silmek istediğinize emin misiniz?`)) return;
+    setDeleteError("");
     try {
       const res = await fetch(`${API_BASE}/api/users/${userId}`, { method: "DELETE", headers: getAuthHeaders() });
-      if (res.ok) await loadUsers();
-    } catch {
-      /* ignore */
+      if (res.ok) {
+        await loadUsers();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setDeleteError(data.message || `Silme başarısız (${res.status})`);
+      }
+    } catch (e) {
+      setDeleteError("Bağlantı hatası");
     }
   };
 
@@ -179,7 +186,8 @@ const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> 
       <section className="card admin-roles-card">
         <h2>Kullanıcı ve rol yönetimi</h2>
         <p className="admin-roles-desc">Kullanıcı ekleyebilir, silebilir, şifre ve rollerini düzenleyebilirsiniz.</p>
-        <button type="button" className="primary admin-add-user-btn" onClick={() => { setShowAddUser(true); setAddError(""); }}>
+        {deleteError && <div className="error">{deleteError}</div>}
+        <button type="button" className="primary admin-add-user-btn" onClick={() => { setShowAddUser(true); setAddError(""); setDeleteError(""); }}>
           + Kullanıcı ekle
         </button>
         {loading ? (

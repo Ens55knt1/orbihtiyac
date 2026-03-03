@@ -26,7 +26,7 @@ interface User {
   nameColor?: string;
 }
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
 const USERS_FILE = path.join(DATA_DIR, "users.json");
 
 function loadUsersFromFile(): User[] {
@@ -60,14 +60,16 @@ function loadUsersFromFile(): User[] {
   return [{ id: 1, isim: "admin", soyisim: "", password: "123456", role: "admin", roles: ["admin"], passwordChanged: false, kullaniciAdi: "", profilePhoto: undefined }];
 }
 
-function saveUsersToFile() {
+function saveUsersToFile(): boolean {
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+    return true;
   } catch (err) {
     console.error("Kullanıcılar dosyaya yazılamadı:", err);
+    return false;
   }
 }
 
@@ -355,12 +357,13 @@ app.post("/api/users", authMiddleware, adminOnly, (req, res) => {
 });
 
 app.delete("/api/users/:id", authMiddleware, adminOnly, (req, res) => {
-  const id = Number(req.params.id);
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ message: "Geçersiz kullanıcı id" });
   const target = users.find((u) => u.id === id);
   if (!target) return res.status(404).json({ message: "Kullanıcı bulunamadı" });
   if (target.role === "admin") return res.status(400).json({ message: "Admin silinemez" });
   users = users.filter((u) => u.id !== id);
-  saveUsersToFile();
+  if (!saveUsersToFile()) return res.status(500).json({ message: "Kullanıcı silindi ama kayıt güncellenemedi" });
   return res.status(204).send();
 });
 
