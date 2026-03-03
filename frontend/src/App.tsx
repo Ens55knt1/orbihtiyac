@@ -221,7 +221,7 @@ const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> 
                         <button type="button" className="secondary btn-sm" onClick={() => { setSetPasswordUserId(u.id); setSetPasswordNew(""); setSetPasswordError(""); }}>
                           Şifre belirle
                         </button>
-                        <button type="button" className="btn-delete btn-sm" onClick={() => handleDeleteUser(u.id, displayName)} title="Kullanıcıyı sil">
+                        <button type="button" className="btn-delete btn-sm" onClick={() => handleDeleteUser(Number(u.id), displayName)} title="Kullanıcıyı sil">
                           Sil
                         </button>
                       </div>

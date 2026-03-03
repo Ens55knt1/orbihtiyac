@@ -322,7 +322,8 @@ app.get("/api/users/count", authMiddleware, (_req, res) => {
 });
 
 // --- Kullanıcı listesi ve rol güncelleme (sadece admin) ---
-app.get("/api/users", authMiddleware, adminOnly, (req, res) => {
+app.get("/api/users", authMiddleware, adminOnly, (_req, res) => {
+  users = loadUsersFromFile();
   const list = users.map((u) => ({ id: u.id, isim: u.isim, soyisim: u.soyisim, role: u.role, roles: u.roles ?? [u.role], nameColor: u.nameColor }));
   res.json(list);
 });
@@ -357,12 +358,17 @@ app.post("/api/users", authMiddleware, adminOnly, (req, res) => {
 });
 
 app.delete("/api/users/:id", authMiddleware, adminOnly, (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  users = loadUsersFromFile();
+  const rawId = req.params.id;
+  const id = parseInt(rawId, 10);
   if (Number.isNaN(id)) return res.status(400).json({ message: "Geçersiz kullanıcı id" });
-  const target = users.find((u) => u.id === id);
-  if (!target) return res.status(404).json({ message: "Kullanıcı bulunamadı" });
+  const target = users.find((u) => u.id === id || u.id === (rawId as unknown as number) || String(u.id) === String(rawId));
+  if (!target) {
+    console.error("DELETE user 404: id=%s, current ids=%s", rawId, users.map((u) => u.id).join(","));
+    return res.status(404).json({ message: "Kullanıcı bulunamadı. Servis yeniden başlamış olabilir; listeyi yenileyin." });
+  }
   if (target.role === "admin") return res.status(400).json({ message: "Admin silinemez" });
-  users = users.filter((u) => u.id !== id);
+  users = users.filter((u) => u.id !== target.id);
   if (!saveUsersToFile()) return res.status(500).json({ message: "Kullanıcı silindi ama kayıt güncellenemedi" });
   return res.status(204).send();
 });
