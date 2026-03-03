@@ -1,7 +1,7 @@
 import React from "react";
 
-/** Logo: public/orbisis.logo.png dosyasını kullanır */
-const LOGO_SRC = "/orbisis.logo.png";
+/** Logo: public/ORBihtiyac.png */
+const LOGO_SRC = "/ORBihtiyac.png";
 
 export const OrbisisLogo: React.FC<{
   className?: string;

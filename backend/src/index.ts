@@ -406,12 +406,21 @@ function autoCategory(name: string): Category {
   return "other";
 }
 
-function enrichItemWithCreator(item: Item): Item & { createdBy?: { id: number; isim: string; soyisim: string; profilePhoto?: string; nameColor?: string } | null } {
+function creatorLocationRole(u: User): "genel" | "floor3" | "floor6" {
+  const roles = u.roles ?? [u.role];
+  if (roles.includes("floor3")) return "floor3";
+  if (roles.includes("floor6")) return "floor6";
+  return "genel";
+}
+
+function enrichItemWithCreator(item: Item): Item & { createdBy?: { id: number; isim: string; soyisim: string; profilePhoto?: string; nameColor?: string; roleLabel: string } | null } {
   const creator = item.createdByUserId ? users.find((u) => u.id === item.createdByUserId) : undefined;
+  const locRole = creator ? creatorLocationRole(creator) : "genel";
+  const roleLabel = locRole === "floor3" ? "3. kat" : locRole === "floor6" ? "6. kat" : "Genel";
   return {
     ...item,
     createdBy: creator
-      ? { id: creator.id, isim: creator.isim, soyisim: creator.soyisim, profilePhoto: creator.profilePhoto ?? undefined, nameColor: creator.nameColor }
+      ? { id: creator.id, isim: creator.isim, soyisim: creator.soyisim, profilePhoto: creator.profilePhoto ?? undefined, nameColor: creator.nameColor, roleLabel }
       : null
   };
 }
@@ -434,12 +443,8 @@ function userVisibleLocations(req: express.Request): Location[] | "all" {
   return locs.length ? locs : ["genel"];
 }
 
-app.get("/api/items", authMiddleware, (req, res) => {
-  const visible = userVisibleLocations(req);
-  const list = visible === "all"
-    ? [...items]
-    : items.filter((i) => (visible as Location[]).includes(i.location));
-  res.json(list.map(enrichItemWithCreator));
+app.get("/api/items", authMiddleware, (_req, res) => {
+  res.json(items.map(enrichItemWithCreator));
 });
 
 app.post("/api/items", authMiddleware, (req, res) => {

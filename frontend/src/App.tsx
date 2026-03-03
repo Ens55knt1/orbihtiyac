@@ -12,6 +12,7 @@ interface ItemCreator {
   soyisim: string;
   profilePhoto?: string;
   nameColor?: string;
+  roleLabel?: string;
 }
 interface Item {
   id: number;
@@ -135,7 +136,6 @@ export const App: React.FC = () => {
   const [newItemQuantity, setNewItemQuantity] = useState<string>("1");
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"needed" | "bought">("needed");
-  const [addItemLocation, setAddItemLocation] = useState<Location>("genel");
   const [slipModalItemId, setSlipModalItemId] = useState<number | null>(null);
   const [slipFile, setSlipFile] = useState<File | null>(null);
   const [slipUploading, setSlipUploading] = useState(false);
@@ -180,9 +180,6 @@ export const App: React.FC = () => {
   const [profilePhotoLoading, setProfilePhotoLoading] = useState(false);
   const [profileNameColor, setProfileNameColor] = useState<string>("");
   const profilePhotoInputRef = useRef<HTMLInputElement>(null);
-
-  const userRoles = user?.roles ?? (user?.role ? [user.role] : []);
-  const canChooseLocation = user?.role === "admin" || user?.role === "yonetici" || userRoles.filter((r: UserRole) => r === "genel" || r === "floor3" || r === "floor6").length > 1;
 
   const loadItems = async () => {
     if (!token) return;
@@ -300,7 +297,7 @@ export const App: React.FC = () => {
       const res = await fetch(`${API_BASE}/api/items`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newItemName, requiredQuantity: qty, location: canChooseLocation ? addItemLocation : (userRoles.includes("floor3") ? "floor3" : userRoles.includes("floor6") ? "floor6" : "genel") })
+        body: JSON.stringify({ name: newItemName, requiredQuantity: qty, location: "genel" })
       });
       const created = (await res.json()) as Item;
       setItems(prev => [...prev, created]);
@@ -930,9 +927,6 @@ export const App: React.FC = () => {
             <ul className="item-list-flat">
               {visibleItems.map(item => (
               <li key={item.id} className={`category-item status-${item.status.toLowerCase()}`}>
-                <div className="item-location-badge">
-                  {item.location === "genel" ? "Genel" : item.location === "floor3" ? "3. kat" : "6. kat"}
-                </div>
                 <label className="item-checkbox-wrap">
                   <input
                     type="checkbox"
@@ -989,6 +983,9 @@ export const App: React.FC = () => {
                     <span className="item-creator-name" style={item.createdBy.nameColor ? { color: item.createdBy.nameColor } : undefined}>
                       {item.createdBy.isim}{item.createdBy.soyisim ? ` ${item.createdBy.soyisim}` : ""}
                     </span>
+                    {item.createdBy.roleLabel && (
+                      <span className="item-creator-role">{item.createdBy.roleLabel}</span>
+                    )}
                   </div>
                 )}
               </li>
@@ -1077,20 +1074,6 @@ export const App: React.FC = () => {
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal add-modal" onClick={e => e.stopPropagation()}>
             <h3>Yeni öğe ekle</h3>
-            {canChooseLocation && (
-              <>
-                <label className="profile-label">Konum</label>
-                <select
-                  value={addItemLocation}
-                  onChange={e => setAddItemLocation(e.target.value as Location)}
-                  className="login-input"
-                >
-                  <option value="genel">Genel</option>
-                  <option value="floor3">3. kat</option>
-                  <option value="floor6">6. kat</option>
-                </select>
-              </>
-            )}
             <input
               type="text"
               placeholder="Malzeme adı..."
