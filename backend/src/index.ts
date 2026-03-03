@@ -185,7 +185,7 @@ app.post("/auth/register", (req, res) => {
   if (!i || !password || password.length < 4) {
     return res.status(400).json({ message: "İsim ve parola (en az 4 karakter) gerekli" });
   }
-  const chosenRole: UserRole = REGISTER_ROLES.includes(role) ? role : "floor3";
+  const chosenRole: UserRole = role && REGISTER_ROLES.includes(role) ? role : "floor3";
   const validColors = new Set(NAME_COLORS);
   const color = nameColor && validColors.has(nameColor as typeof NAME_COLORS[number]) ? nameColor : undefined;
   const key = (a: string, b: string) => `${a.toLowerCase()}|${b.toLowerCase()}`;
@@ -324,7 +324,7 @@ app.get("/api/users/count", authMiddleware, (_req, res) => {
 // --- Kullanıcı listesi ve rol güncelleme (sadece admin) ---
 app.get("/api/users", authMiddleware, adminOnly, (_req, res) => {
   users = loadUsersFromFile();
-  const list = users.map((u) => ({ id: u.id, isim: u.isim, soyisim: u.soyisim, role: u.role, roles: u.roles ?? [u.role], nameColor: u.nameColor }));
+  const list = users.map((u) => ({ id: u.id, isim: u.isim, soyisim: u.soyisim, kullaniciAdi: u.kullaniciAdi ?? "", role: u.role, roles: u.roles ?? [u.role], nameColor: u.nameColor }));
   res.json(list);
 });
 
@@ -335,7 +335,7 @@ app.post("/api/users", authMiddleware, adminOnly, (req, res) => {
   if (!i || !password || String(password).length < 4) {
     return res.status(400).json({ message: "İsim ve parola (en az 4 karakter) gerekli" });
   }
-  const chosenRole: UserRole = REGISTER_ROLES.includes(role) ? role : "floor3";
+  const chosenRole: UserRole = role && REGISTER_ROLES.includes(role) ? role : "floor3";
   const key = (a: string, b: string) => `${a.toLowerCase()}|${b.toLowerCase()}`;
   if (users.some((u) => key(u.isim, u.soyisim) === key(i, s))) {
     return res.status(400).json({ message: "Bu isim ve soyisim zaten kayıtlı" });
@@ -389,11 +389,26 @@ app.post("/api/users/:id/set-password", authMiddleware, adminOnly, (req, res) =>
 
 app.patch("/api/users/:id", authMiddleware, adminOnly, (req, res) => {
   const id = Number(req.params.id);
-  const { roles: newRoles } = req.body as { roles?: UserRole[] };
+  const { roles: newRoles, isim: newIsim, soyisim: newSoyisim, kullaniciAdi: newKullaniciAdi } = req.body as {
+    roles?: UserRole[];
+    isim?: string;
+    soyisim?: string;
+    kullaniciAdi?: string;
+  };
   const user = users.find((u) => u.id === id);
   if (!user) return res.status(404).json({ message: "Kullanıcı bulunamadı" });
-  if (user.role === "admin") return res.status(400).json({ message: "Admin rolü değiştirilemez" });
-  if (Array.isArray(newRoles) && newRoles.length > 0) {
+
+  if (newIsim !== undefined) user.isim = String(newIsim).trim();
+  if (newSoyisim !== undefined) user.soyisim = String(newSoyisim).trim();
+  if (newKullaniciAdi !== undefined) {
+    const ka = String(newKullaniciAdi).trim();
+    if (ka && users.some((u) => u.id !== id && (u.kullaniciAdi ?? "") === ka)) {
+      return res.status(400).json({ message: "Bu kullanıcı adı zaten kullanılıyor" });
+    }
+    user.kullaniciAdi = ka;
+  }
+
+  if (user.role !== "admin" && Array.isArray(newRoles) && newRoles.length > 0) {
     const valid: UserRole[] = [];
     for (const r of newRoles) {
       if ((r === "genel" || r === "floor3" || r === "floor6" || r === "yonetici") && !valid.includes(r)) valid.push(r);
@@ -405,10 +420,12 @@ app.patch("/api/users/:id", authMiddleware, adminOnly, (req, res) => {
       user.roles = valid.length ? valid : ["genel"];
       user.role = user.roles[0];
     }
-    saveUsersToFile();
-    return res.json({ id: user.id, isim: user.isim, soyisim: user.soyisim, role: user.role, roles: user.roles });
   }
-  return res.status(400).json({ message: "Geçersiz roller" });
+
+  if (newIsim !== undefined || newSoyisim !== undefined || newKullaniciAdi !== undefined || (Array.isArray(newRoles) && newRoles.length > 0 && user.role !== "admin")) {
+    saveUsersToFile();
+  }
+  return res.json({ id: user.id, isim: user.isim, soyisim: user.soyisim, kullaniciAdi: user.kullaniciAdi ?? "", role: user.role, roles: user.roles ?? [user.role] });
 });
 
 // Slip dosyaları

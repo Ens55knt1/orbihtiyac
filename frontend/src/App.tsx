@@ -36,6 +36,7 @@ interface ApiUser {
   id: number;
   isim: string;
   soyisim: string;
+  kullaniciAdi?: string;
   role: UserRole;
   roles?: UserRole[];
   nameColor?: string;
@@ -70,6 +71,12 @@ const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> 
   const [setPasswordError, setSetPasswordError] = useState("");
   const [setPasswordLoading, setSetPasswordLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [editUser, setEditUser] = useState<ApiUser | null>(null);
+  const [editIsim, setEditIsim] = useState("");
+  const [editSoyisim, setEditSoyisim] = useState("");
+  const [editKullaniciAdi, setEditKullaniciAdi] = useState("");
+  const [editError, setEditError] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
 
   const loadUsers = async () => {
     try {
@@ -181,6 +188,39 @@ const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> 
     }
   };
 
+  const openEditUser = (u: ApiUser) => {
+    setEditUser(u);
+    setEditIsim(u.isim);
+    setEditSoyisim(u.soyisim ?? "");
+    setEditKullaniciAdi(u.kullaniciAdi ?? "");
+    setEditError("");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+    setEditError("");
+    setEditLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/users/${editUser.id}`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ isim: editIsim.trim(), soyisim: editSoyisim.trim(), kullaniciAdi: editKullaniciAdi.trim() })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEditUser(null);
+        await loadUsers();
+      } else {
+        setEditError(data.message || "Kaydedilemedi");
+      }
+    } catch {
+      setEditError("Bağlantı hatası");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   return (
     <>
       <section className="card admin-roles-card">
@@ -200,33 +240,36 @@ const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> 
               return (
                 <li key={u.id} className="admin-user-row">
                   <span className="admin-user-name">{displayName}</span>
-                  {u.role === "admin" ? (
-                    <span className="admin-user-role-badge">Admin</span>
-                  ) : (
-                    <>
-                      <div className="admin-roles-multi">
-                        {LOCATION_ROLES.map(({ value, label }) => (
-                          <label key={value} className="admin-role-check">
-                            <input
-                              type="checkbox"
-                              checked={roles.includes(value)}
-                              disabled={updatingId === u.id}
-                              onChange={() => updateRoles(u.id, toggleRole(roles, value))}
-                            />
-                            <span>{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                      <div className="admin-user-actions">
+                  <div className="admin-user-actions">
+                    <button type="button" className="secondary btn-sm" onClick={() => openEditUser(u)} title="İsim ve kullanıcı adı düzenle">
+                      Düzenle
+                    </button>
+                    {u.role === "admin" ? (
+                      <span className="admin-user-role-badge">Admin</span>
+                    ) : (
+                      <>
+                        <div className="admin-roles-multi">
+                          {LOCATION_ROLES.map(({ value, label }) => (
+                            <label key={value} className="admin-role-check">
+                              <input
+                                type="checkbox"
+                                checked={roles.includes(value)}
+                                disabled={updatingId === u.id}
+                                onChange={() => updateRoles(u.id, toggleRole(roles, value))}
+                              />
+                              <span>{label}</span>
+                            </label>
+                          ))}
+                        </div>
                         <button type="button" className="secondary btn-sm" onClick={() => { setSetPasswordUserId(u.id); setSetPasswordNew(""); setSetPasswordError(""); }}>
                           Şifre belirle
                         </button>
                         <button type="button" className="btn-delete btn-sm" onClick={() => handleDeleteUser(Number(u.id), displayName)} title="Kullanıcıyı sil">
                           Sil
                         </button>
-                      </div>
-                    </>
-                  )}
+                      </>
+                    )}
+                  </div>
                 </li>
               );
             })}
@@ -268,6 +311,27 @@ const AdminRoleSection: React.FC<{ getAuthHeaders: () => Record<string, string> 
               <div className="modal-actions">
                 <button type="button" className="secondary" onClick={() => { setSetPasswordUserId(null); setSetPasswordError(""); }}>İptal</button>
                 <button type="submit" disabled={setPasswordLoading || setPasswordNew.length < 4}>{setPasswordLoading ? "Kaydediliyor..." : "Kaydet"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editUser && (
+        <div className="modal-overlay" onClick={() => setEditUser(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <h3>İsim ve kullanıcı adı düzenle — {editUser.isim}{editUser.soyisim ? ` ${editUser.soyisim}` : ""}</h3>
+            <form onSubmit={handleSaveEdit}>
+              {editError && <div className="error">{editError}</div>}
+              <label className="profile-label">İsim</label>
+              <input type="text" value={editIsim} onChange={e => setEditIsim(e.target.value)} className="login-input" required />
+              <label className="profile-label">Soyisim</label>
+              <input type="text" value={editSoyisim} onChange={e => setEditSoyisim(e.target.value)} className="login-input" />
+              <label className="profile-label">Kullanıcı adı</label>
+              <input type="text" value={editKullaniciAdi} onChange={e => setEditKullaniciAdi(e.target.value)} className="login-input" placeholder="İsteğe bağlı" />
+              <div className="modal-actions">
+                <button type="button" className="secondary" onClick={() => setEditUser(null)}>İptal</button>
+                <button type="submit" disabled={editLoading}>{editLoading ? "Kaydediliyor..." : "Kaydet"}</button>
               </div>
             </form>
           </div>
