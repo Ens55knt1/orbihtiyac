@@ -1141,7 +1141,7 @@ export const App: React.FC = () => {
 
           {error && <div className="error">{error}</div>}
 
-          {visibleItems.length > 0 && user?.role === "admin" && (
+          {visibleItems.length > 0 && (
             <div className="list-actions-row">
               <label className="select-all-label">
                 <input
@@ -1163,8 +1163,7 @@ export const App: React.FC = () => {
           <div className="list-card">
             <ul className="item-list-flat">
               {visibleItems.map(item => (
-              <li key={item.id} className={`category-item status-${item.status.toLowerCase()}`}>
-                {user && (user.role === "admin" || item.createdBy?.id === user.id) && (
+                <li key={item.id} className={`category-item status-${item.status.toLowerCase()}`}>
                   <label className="item-checkbox-wrap">
                     <input
                       type="checkbox"
@@ -1173,8 +1172,7 @@ export const App: React.FC = () => {
                       className="list-checkbox"
                     />
                   </label>
-                )}
-                <div className="item-content">
+                  <div className="item-content">
                   <div className="item-name-row">
                     <span className="item-name">{item.name}</span>
                     <span className="item-quantity">{item.requiredQuantity} adet</span>
@@ -1210,9 +1208,7 @@ export const App: React.FC = () => {
                   {activeTab === "needed" && (
                     <button className="secondary btn-sm" onClick={() => openSlipModal(item.id)}>Alındı</button>
                   )}
-                  {user && (user.role === "admin" || item.createdBy?.id === user.id) && (
-                    <button type="button" className="btn-delete btn-sm" onClick={() => deleteItem(item.id)} title="Sil">Sil</button>
-                  )}
+                  <button type="button" className="btn-delete btn-sm" onClick={() => deleteItem(item.id)} title="Sil">Sil</button>
                 </div>
                 {item.createdBy && (
                   <div className="item-added-by">

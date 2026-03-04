@@ -597,17 +597,9 @@ app.post("/api/items/:id/slip", authMiddleware, upload.single("slip"), (req, res
 });
 
 app.delete("/api/items/:id", authMiddleware, (req, res) => {
-  const { user } = req as express.Request & { user: JwtPayload };
-  const currentUser = users.find((u) => u.id === user.userId);
-  if (!currentUser) return res.status(401).json({ message: "Kullanıcı bulunamadı" });
   const id = Number(req.params.id);
   const item = items.find((i) => i.id === id);
   if (!item) return res.status(404).json({ message: "Item not found" });
-  const isAdmin = currentUser.role === "admin";
-  const isOwner = item.createdByUserId === currentUser.id;
-  if (!isAdmin && !isOwner) {
-    return res.status(403).json({ message: "Sadece admin veya öğeyi ekleyen silebilir" });
-  }
   items = items.filter((i) => i.id !== id);
   res.status(204).send();
 });
