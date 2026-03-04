@@ -1164,7 +1164,7 @@ export const App: React.FC = () => {
             <ul className="item-list-flat">
               {visibleItems.map(item => (
               <li key={item.id} className={`category-item status-${item.status.toLowerCase()}`}>
-                {user?.role === "admin" && (
+                {user && (user.role === "admin" || item.createdBy?.id === user.id) && (
                   <label className="item-checkbox-wrap">
                     <input
                       type="checkbox"
@@ -1210,7 +1210,7 @@ export const App: React.FC = () => {
                   {activeTab === "needed" && (
                     <button className="secondary btn-sm" onClick={() => openSlipModal(item.id)}>Alındı</button>
                   )}
-                  {user?.role === "admin" && (
+                  {user && (user.role === "admin" || item.createdBy?.id === user.id) && (
                     <button type="button" className="btn-delete btn-sm" onClick={() => deleteItem(item.id)} title="Sil">Sil</button>
                   )}
                 </div>

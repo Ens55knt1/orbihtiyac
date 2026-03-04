@@ -323,8 +323,15 @@ app.get("/api/users/count", authMiddleware, (_req, res) => {
 
 // --- Kullanıcı listesi ve rol güncelleme (sadece admin) ---
 app.get("/api/users", authMiddleware, adminOnly, (_req, res) => {
-  users = loadUsersFromFile();
-  const list = users.map((u) => ({ id: u.id, isim: u.isim, soyisim: u.soyisim, kullaniciAdi: u.kullaniciAdi ?? "", role: u.role, roles: u.roles ?? [u.role], nameColor: u.nameColor }));
+  const list = users.map((u) => ({
+    id: u.id,
+    isim: u.isim,
+    soyisim: u.soyisim,
+    kullaniciAdi: u.kullaniciAdi ?? "",
+    role: u.role,
+    roles: u.roles ?? [u.role],
+    nameColor: u.nameColor
+  }));
   res.json(list);
 });
 
@@ -358,15 +365,10 @@ app.post("/api/users", authMiddleware, adminOnly, (req, res) => {
 });
 
 app.delete("/api/users/:id", authMiddleware, adminOnly, (req, res) => {
-  users = loadUsersFromFile();
-  const rawId = req.params.id;
-  const id = parseInt(rawId, 10);
+  const id = Number(req.params.id);
   if (Number.isNaN(id)) return res.status(400).json({ message: "Geçersiz kullanıcı id" });
-  const target = users.find((u) => u.id === id || u.id === (rawId as unknown as number) || String(u.id) === String(rawId));
-  if (!target) {
-    console.error("DELETE user 404: id=%s, current ids=%s", rawId, users.map((u) => u.id).join(","));
-    return res.status(404).json({ message: "Kullanıcı bulunamadı. Servis yeniden başlamış olabilir; listeyi yenileyin." });
-  }
+  const target = users.find((u) => u.id === id);
+  if (!target) return res.status(404).json({ message: "Kullanıcı bulunamadı" });
   if (target.role === "admin") return res.status(400).json({ message: "Admin silinemez" });
   users = users.filter((u) => u.id !== target.id);
   if (!saveUsersToFile()) return res.status(500).json({ message: "Kullanıcı silindi ama kayıt güncellenemedi" });
@@ -596,10 +598,16 @@ app.post("/api/items/:id/slip", authMiddleware, upload.single("slip"), (req, res
 
 app.delete("/api/items/:id", authMiddleware, (req, res) => {
   const { user } = req as express.Request & { user: JwtPayload };
-  if (user.role !== "admin") return res.status(403).json({ message: "Sadece admin öğe silebilir" });
+  const currentUser = users.find((u) => u.id === user.userId);
+  if (!currentUser) return res.status(401).json({ message: "Kullanıcı bulunamadı" });
   const id = Number(req.params.id);
   const item = items.find((i) => i.id === id);
   if (!item) return res.status(404).json({ message: "Item not found" });
+  const isAdmin = currentUser.role === "admin";
+  const isOwner = item.createdByUserId === currentUser.id;
+  if (!isAdmin && !isOwner) {
+    return res.status(403).json({ message: "Sadece admin veya öğeyi ekleyen silebilir" });
+  }
   items = items.filter((i) => i.id !== id);
   res.status(204).send();
 });
