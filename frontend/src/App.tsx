@@ -25,6 +25,7 @@ interface Item {
   boughtAt?: string;
   slipFileName?: string;
   createdBy?: ItemCreator | null;
+   invoiceCode?: string;
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
@@ -381,7 +382,10 @@ export const App: React.FC = () => {
   const [adminNewPw, setAdminNewPw] = useState("");
   const [adminPwError, setAdminPwError] = useState("");
   const [adminPwLoading, setAdminPwLoading] = useState(false);
-    const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+  const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+  const [locationFilter, setLocationFilter] = useState<"all" | "floor3" | "floor6">("all");
+  const [boughtSearch, setBoughtSearch] = useState("");
+  const [invoiceName, setInvoiceName] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileIsim, setProfileIsim] = useState("");
@@ -426,9 +430,22 @@ export const App: React.FC = () => {
 
   const needCount = items.filter(i => i.status !== "BOUGHT").length;
   const boughtCount = items.filter(i => i.status === "BOUGHT").length;
-  const visibleItems = items
-    .filter(item => (activeTab === "needed" ? item.status !== "BOUGHT" : item.status === "BOUGHT"))
-    .sort((a, b) => b.id - a.id);
+
+  const filteredByLocation = items.filter(item => {
+    if (locationFilter === "all") return true;
+    return item.location === locationFilter;
+  });
+
+  let visibleItems = filteredByLocation.filter(item =>
+    activeTab === "needed" ? item.status !== "BOUGHT" : item.status === "BOUGHT"
+  );
+
+  if (activeTab === "bought" && boughtSearch.trim()) {
+    const q = boughtSearch.trim().toLowerCase();
+    visibleItems = visibleItems.filter(item => item.name.toLowerCase().includes(q));
+  }
+
+  visibleItems = visibleItems.sort((a, b) => b.id - a.id);
   const visibleIds = visibleItems.map(i => i.id);
   const isAllSelected = visibleIds.length > 0 && visibleIds.every(id => selectedItemIds.includes(id));
 
@@ -459,6 +476,28 @@ export const App: React.FC = () => {
     }
     setSelectedItemIds([]);
     void loadItems();
+  };
+
+  const applyInvoiceToSelected = async () => {
+    const code = invoiceName.trim();
+    const boughtIds = visibleItems
+      .filter(i => i.status === "BOUGHT")
+      .map(i => i.id)
+      .filter(id => selectedItemIds.includes(id));
+    if (boughtIds.length === 0 || !code) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/items/invoice-batch`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds: boughtIds, invoiceCode: code })
+      });
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as Item[];
+      setItems(data);
+      setInvoiceName("");
+    } catch {
+      setError("Fatura bilgisi kaydedilirken hata oluştu.");
+    }
   };
 
   useEffect(() => {
@@ -1143,6 +1182,29 @@ export const App: React.FC = () => {
 
           {visibleItems.length > 0 && (
             <div className="list-actions-row">
+              <div className="location-filter">
+                <button
+                  type="button"
+                  className={`filter-pill ${locationFilter === "all" ? "filter-pill-active" : ""}`}
+                  onClick={() => setLocationFilter("all")}
+                >
+                  Hepsi
+                </button>
+                <button
+                  type="button"
+                  className={`filter-pill ${locationFilter === "floor3" ? "filter-pill-active" : ""}`}
+                  onClick={() => setLocationFilter("floor3")}
+                >
+                  3. kat
+                </button>
+                <button
+                  type="button"
+                  className={`filter-pill ${locationFilter === "floor6" ? "filter-pill-active" : ""}`}
+                  onClick={() => setLocationFilter("floor6")}
+                >
+                  6. kat
+                </button>
+              </div>
               <label className="select-all-label">
                 <input
                   type="checkbox"
@@ -1157,6 +1219,38 @@ export const App: React.FC = () => {
                   Seçilenleri sil ({selectedItemIds.length})
                 </button>
               )}
+            </div>
+          )}
+
+          {activeTab === "bought" && (
+            <div className="bought-search-row">
+              <input
+                type="text"
+                className="login-input"
+                placeholder="Alınanlarda ara..."
+                value={boughtSearch}
+                onChange={e => setBoughtSearch(e.target.value)}
+              />
+            </div>
+          )}
+
+          {activeTab === "bought" && selectedItemIds.length > 0 && (
+            <div className="invoice-actions-row">
+              <input
+                type="text"
+                className="login-input"
+                placeholder="Seçilenlere atanacak fatura adı..."
+                value={invoiceName}
+                onChange={e => setInvoiceName(e.target.value)}
+              />
+              <button
+                type="button"
+                className="secondary btn-sm"
+                disabled={!invoiceName.trim()}
+                onClick={applyInvoiceToSelected}
+              >
+                Fatura ata
+              </button>
             </div>
           )}
 
@@ -1177,7 +1271,7 @@ export const App: React.FC = () => {
                     <span className="item-name">{item.name}</span>
                     <span className="item-quantity">{item.requiredQuantity} adet</span>
                   </div>
-                  {(item.createdAt || (activeTab === "bought" && item.boughtAt)) && (
+                  {(item.createdAt || (activeTab === "bought" && (item.boughtAt || item.invoiceCode))) && (
                     <div className="item-meta">
                       {[
                         item.createdAt
@@ -1185,6 +1279,9 @@ export const App: React.FC = () => {
                           : null,
                         activeTab === "bought" && item.boughtAt
                           ? `Alındı: ${new Date(item.boughtAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })}`
+                          : null,
+                        activeTab === "bought" && item.invoiceCode
+                          ? `Fatura: ${item.invoiceCode}`
                           : null
                       ].filter(Boolean).join(" · ")}
                     </div>

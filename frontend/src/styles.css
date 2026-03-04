@@ -788,6 +788,38 @@ button.primary:hover:not(:disabled) {
   font-size: 13px;
 }
 
+.location-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-pill {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: #e5e7eb;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.filter-pill-active {
+  background: var(--orbisis-primary);
+  border-color: var(--orbisis-primary);
+}
+
+.bought-search-row {
+  margin: 8px 0;
+}
+
+.invoice-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
 .location-title {
   font-size: 18px;
   margin: 0 0 12px;

@@ -148,9 +148,10 @@ function getCurrentUser(req: express.Request): User | undefined {
 // --- Auth ---
 app.post("/auth/login", (req, res) => {
   const { isim, soyisim, password } = req.body as { isim?: string; soyisim?: string; password?: string };
-  const i = (isim ?? "").trim();
-  const s = (soyisim ?? "").trim();
-  const user = users.find((u) => u.isim === i && u.soyisim === s && u.password === password);
+  const norm = (v?: string) => (v ?? "").trim().toLowerCase();
+  const i = norm(isim);
+  const s = norm(soyisim);
+  const user = users.find((u) => norm(u.isim) === i && norm(u.soyisim) === s && u.password === password);
   if (!user) {
     return res.status(401).json({ message: "İsim, soyisim veya parola hatalı" });
   }
@@ -476,6 +477,7 @@ interface Item {
   boughtAt?: string;
   slipFileName?: string;
   createdByUserId?: number;
+  invoiceCode?: string;
 }
 
 /** Malzeme adına göre otomatik kategori tahmini (Market, Ofis, Kuruyemiş, Meyve) - güçlendirilmiş */
@@ -574,7 +576,6 @@ app.patch("/api/items/:id/status", authMiddleware, (req, res) => {
   const id = Number(req.params.id);
   const item = items.find((i) => i.id === id);
   if (!item) return res.status(404).json({ message: "Item not found" });
-  if (!canAccessItem(req, item)) return res.status(403).json({ message: "Yetkisiz" });
   const { status } = req.body as { status: Status };
   item.status = status;
   if (status === "BOUGHT") {
@@ -590,7 +591,6 @@ app.post("/api/items/:id/slip", authMiddleware, upload.single("slip"), (req, res
   const id = Number(req.params.id);
   const item = items.find((i) => i.id === id);
   if (!item) return res.status(404).json({ message: "Item not found" });
-  if (!canAccessItem(req, item)) return res.status(403).json({ message: "Yetkisiz" });
   if (!req.file) return res.status(400).json({ message: "Dosya yüklenmedi" });
   item.slipFileName = req.file.filename;
   res.json(enrichItemWithCreator(item));
@@ -612,6 +612,20 @@ app.delete("/api/items", authMiddleware, (req, res) => {
     items = items.filter((i) => i.location !== location);
   }
   res.status(204).send();
+});
+
+app.post("/api/items/invoice-batch", authMiddleware, (req, res) => {
+  const { itemIds, invoiceCode } = req.body as { itemIds?: number[]; invoiceCode?: string };
+  if (!Array.isArray(itemIds) || itemIds.length === 0) {
+    return res.status(400).json({ message: "itemIds gerekli" });
+  }
+  const code = (invoiceCode ?? "").trim();
+  items = items.map((i) => {
+    if (!itemIds.includes(i.id)) return i;
+    if (i.status !== "BOUGHT") return i;
+    return { ...i, invoiceCode: code || undefined };
+  });
+  res.json(items.map(enrichItemWithCreator));
 });
 
 app.listen(port, () => {
